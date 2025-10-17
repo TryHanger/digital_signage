@@ -4,3 +4,6 @@ go test
 *.out
 *.log
 .env
+
+.idea/
+text.txt
