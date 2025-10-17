@@ -1,0 +1,6 @@
+go build
+go test
+*.exe
+*.out
+*.log
+.env
