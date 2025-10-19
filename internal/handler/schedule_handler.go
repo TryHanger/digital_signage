@@ -12,8 +12,8 @@ type ScheduleHandler struct {
 	service *service.ScheduleService
 }
 
-func NewScheduleHandler(s *service.ScheduleService) *ScheduleHandler {
-	return &ScheduleHandler{service: s}
+func NewScheduleHandler(service *service.ScheduleService) *ScheduleHandler {
+	return &ScheduleHandler{service: service}
 }
 
 func (h *ScheduleHandler) RegisterRoutes(r *gin.Engine) {
@@ -22,27 +22,37 @@ func (h *ScheduleHandler) RegisterRoutes(r *gin.Engine) {
 		group.POST("/", h.Create)
 		group.GET("/", h.GetAll)
 		group.GET("/:id", h.GetByID)
-		group.PUT("/:id", h.Update)
 		group.DELETE("/:id", h.Delete)
+		group.PUT("/resolve", h.ResolveConflicts)
+		group.PUT("/update", h.UpdateSchedules)
 	}
-
-	// отдельный маршрут: активный контент для монитора
-	r.GET("/monitors/:id/current", h.GetActiveContent)
 }
 
+// Создание расписания
 func (h *ScheduleHandler) Create(c *gin.Context) {
 	var schedule model.Schedule
 	if err := c.ShouldBindJSON(&schedule); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	if err := h.service.Create(&schedule); err != nil {
+
+	conflicts, err := h.service.CreateSchedule(&schedule)
+	if err != nil {
+		if conflicts != nil {
+			c.JSON(http.StatusConflict, gin.H{
+				"error":     "time conflict detected",
+				"conflicts": conflicts,
+			})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+
 	c.JSON(http.StatusCreated, schedule)
 }
 
+// Получение всех
 func (h *ScheduleHandler) GetAll(c *gin.Context) {
 	schedules, err := h.service.GetAll()
 	if err != nil {
@@ -52,31 +62,18 @@ func (h *ScheduleHandler) GetAll(c *gin.Context) {
 	c.JSON(http.StatusOK, schedules)
 }
 
+// Получение по ID
 func (h *ScheduleHandler) GetByID(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))
 	schedule, err := h.service.GetByID(uint(id))
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Расписание не найдено"})
 		return
 	}
 	c.JSON(http.StatusOK, schedule)
 }
 
-func (h *ScheduleHandler) Update(c *gin.Context) {
-	id, _ := strconv.Atoi(c.Param("id"))
-	var schedule model.Schedule
-	if err := c.ShouldBindJSON(&schedule); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-	schedule.ID = uint(id)
-	if err := h.service.Update(&schedule); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-	c.JSON(http.StatusOK, schedule)
-}
-
+// Удаление
 func (h *ScheduleHandler) Delete(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))
 	if err := h.service.Delete(uint(id)); err != nil {
@@ -86,12 +83,35 @@ func (h *ScheduleHandler) Delete(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
-func (h *ScheduleHandler) GetActiveContent(c *gin.Context) {
-	id, _ := strconv.Atoi(c.Param("id"))
-	schedule, err := h.service.GetActiveContent(uint(id))
-	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Нет активного контента"})
+func (h *ScheduleHandler) ResolveConflicts(c *gin.Context) {
+	var req struct {
+		Schedules []model.Schedule `json:"schedules"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, schedule.Content)
+
+	if err := h.service.UpdateSchedules(req.Schedules); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "schedules updated"})
+}
+
+func (h *ScheduleHandler) UpdateSchedules(c *gin.Context) {
+	var schedules []model.Schedule
+
+	if err := c.ShouldBindJSON(&schedules); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := h.service.UpdateSchedules(schedules); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "schedules updated successfully"})
 }

@@ -1,20 +1,19 @@
 package handler
 
 import (
-	"net/http"
-	"strconv"
-
 	"github.com/TryHanger/digital_signage/internal/model"
 	"github.com/TryHanger/digital_signage/internal/service"
 	"github.com/gin-gonic/gin"
+	"net/http"
+	"strconv"
 )
 
 type ContentHandler struct {
 	service *service.ContentService
 }
 
-func NewContentHandler(s *service.ContentService) *ContentHandler {
-	return &ContentHandler{service: s}
+func NewContentHandler(service *service.ContentService) *ContentHandler {
+	return &ContentHandler{service: service}
 }
 
 func (h *ContentHandler) RegisterRoutes(r *gin.Engine) {
