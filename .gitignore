@@ -9,3 +9,4 @@ go test
 text.txt
 советы.txt
 горутина.txt
+cache_handler.go

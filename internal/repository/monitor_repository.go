@@ -25,3 +25,11 @@ func (r *MonitorRepository) GetAll() ([]model.Monitor, error) {
 func (r *MonitorRepository) Create(monitor *model.Monitor) error {
 	return r.db.Create(monitor).Error
 }
+
+func (r *MonitorRepository) GetByID(id uint) (*model.Monitor, error) {
+	var monitor model.Monitor
+	if err := r.db.Preload("Location").First(&monitor, id).Error; err != nil {
+		return nil, err
+	}
+	return &monitor, nil
+}

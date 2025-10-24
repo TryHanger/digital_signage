@@ -76,7 +76,7 @@ func (h *ScheduleHandler) GetByID(c *gin.Context) {
 // Удаление
 func (h *ScheduleHandler) Delete(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))
-	if err := h.service.Delete(uint(id)); err != nil {
+	if err := h.service.DeleteSchedule(uint(id)); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

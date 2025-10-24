@@ -3,6 +3,7 @@ package repository
 import (
 	"github.com/TryHanger/digital_signage/internal/model"
 	"gorm.io/gorm"
+	"time"
 )
 
 type ScheduleRepository struct {
@@ -13,10 +14,9 @@ func NewScheduleRepository(db *gorm.DB) *ScheduleRepository {
 	return &ScheduleRepository{db: db}
 }
 
-// Создание расписания и связанных дней
-//func (r *ScheduleRepository) Create(schedule *model.Schedule) error {
-//	return r.db.Create(schedule).Error
-//}
+func (r *ScheduleRepository) DB() *gorm.DB {
+	return r.db
+}
 
 func (r *ScheduleRepository) Create(schedule *model.Schedule) error {
 	if err := r.db.Create(schedule).Error; err != nil {
@@ -52,11 +52,6 @@ func (r *ScheduleRepository) GetByID(id uint) (*model.Schedule, error) {
 	return &schedule, nil
 }
 
-// Удаление
-func (r *ScheduleRepository) Delete(id uint) error {
-	return r.db.Delete(&model.Schedule{}, id).Error
-}
-
 func (r *ScheduleRepository) FindConflicts(schedule *model.Schedule) ([]model.Schedule, error) {
 	var conflicts []model.Schedule
 
@@ -87,6 +82,11 @@ func (r *ScheduleRepository) FindConflicts(schedule *model.Schedule) ([]model.Sc
 
 func (r *ScheduleRepository) UpdateSchedules(schedules []model.Schedule) error {
 	tx := r.db.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
 
 	for _, sched := range schedules {
 		if err := tx.Model(&model.Schedule{}).
@@ -102,4 +102,42 @@ func (r *ScheduleRepository) UpdateSchedules(schedules []model.Schedule) error {
 	}
 
 	return tx.Commit().Error
+}
+
+func (r *ScheduleRepository) GetSchedulesForDate(date time.Time) ([]model.Schedule, error) {
+	var schedules []model.Schedule
+	err := r.db.Preload("Content").
+		Preload("Monitor").
+		Preload("Location").
+		Preload("Days").
+		Joins("JOIN schedule_days ON schedules.id = schedule_days.schedule_id").
+		Where("schedule_days.date = ?", date).
+		Find(&schedules).Error
+	return schedules, err
+}
+
+func (r *ScheduleRepository) DeleteByID(id uint) (*model.Schedule, error) {
+	var schedule model.Schedule
+
+	tx := r.db.Begin()
+
+	// Сначала находим, чтобы вернуть данные для удаления из кэша
+	if err := tx.Preload("Days").First(&schedule, id).Error; err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
+	// Удаляем из таблицы schedule_days (если связь есть)
+	if err := tx.Where("schedule_id = ?", id).Delete(&model.ScheduleDay{}).Error; err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
+	// Удаляем саму запись расписания
+	if err := tx.Delete(&model.Schedule{}, id).Error; err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
+	return &schedule, tx.Commit().Error
 }

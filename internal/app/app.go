@@ -2,60 +2,81 @@ package app
 
 import (
 	"fmt"
+	"log"
+	"net/http"
+
+	"github.com/TryHanger/digital_signage/internal/cache"
 	"github.com/TryHanger/digital_signage/internal/config"
 	"github.com/TryHanger/digital_signage/internal/handler"
 	"github.com/TryHanger/digital_signage/internal/model"
 	"github.com/TryHanger/digital_signage/internal/repository"
 	"github.com/TryHanger/digital_signage/internal/service"
+	"github.com/TryHanger/digital_signage/internal/socket"
 	"github.com/gin-gonic/gin"
-	"net/http"
+	"github.com/gorilla/websocket"
 )
 
 func Run() {
 	cfg := config.Load()
 	db := repository.InitDB(cfg)
+
 	//db.Migrator().DropTable(&model.Location{}, &model.Monitor{}, &model.Content{}, &model.Schedule{}, &model.ScheduleDay{})
 	db.AutoMigrate(&model.Location{}, &model.Monitor{}, &model.Content{}, &model.Schedule{}, &model.ScheduleDay{})
 
-	// --- Repos/Services/Handlers ---
+	// --- Repositories ---
 	monitorRepo := repository.NewMonitorRepository(db)
-	monitorService := service.NewMonitorService(monitorRepo)
-	monitorHandler := handler.NewMonitorHandler(monitorService)
-
 	contentRepo := repository.NewContentRepository(db)
-	contentService := service.NewContentService(contentRepo)
-	contentHandler := handler.NewContentHandler(contentService)
-
 	scheduleRepo := repository.NewScheduleRepository(db)
-	scheduleService := service.NewScheduleService(scheduleRepo)
-	scheduleHandler := handler.NewScheduleHandler(scheduleService)
-
 	locationRepo := repository.NewLocationRepository(db)
+
+	// --- Cache ---
+	scheduleCache := cache.NewScheduleCache()
+
+	// --- Notifier ---
+	notifier := socket.NewWebSocketNotifier(monitorRepo, scheduleCache)
+
+	// --- Services ---
+	monitorService := service.NewMonitorService(monitorRepo)
+	contentService := service.NewContentService(contentRepo)
+	scheduleService := service.NewScheduleService(scheduleRepo, scheduleCache, notifier)
 	locationService := service.NewLocationService(locationRepo)
+
+	// --- Handlers ---
+	monitorHandler := handler.NewMonitorHandler(monitorService)
+	contentHandler := handler.NewContentHandler(contentService)
+	scheduleHandler := handler.NewScheduleHandler(scheduleService)
 	locationHandler := handler.NewLocationHandler(locationService)
+	cacheHandler := handler.NewCacheHandler(scheduleCache)
 
-	// --- Инициализация Socket.IO ---
-	socketServer := InitSocketServer()
-	go socketServer.Serve()
-	defer socketServer.Close()
-
-	// --- Gin маршруты ---
+	// --- Gin ---
 	r := gin.Default()
 
-	// Подключаем REST-хендлеры
+	// 🔌 WebSocket endpoint
+	r.GET("/ws", func(c *gin.Context) {
+		conn, err := websocket.Upgrade(c.Writer, c.Request, nil, 1024, 1024)
+		if err != nil {
+			log.Println("❌ Ошибка апгрейда соединения:", err)
+			return
+		}
+		notifier.HandleConnection(conn)
+	})
+
+	// REST endpoints
+	r.GET("/cache/schedules", cacheHandler.GetCache)
 	monitorHandler.RegisterRoutes(r)
 	contentHandler.RegisterRoutes(r)
 	scheduleHandler.RegisterRoutes(r)
 	locationHandler.RegisterRoutes(r)
 
-	// Подключаем Socket.IO endpoint
-	r.GET("/socket.io/*any", gin.WrapH(socketServer))
-	r.POST("/socket.io/*any", gin.WrapH(socketServer))
+	// 🔔 Событие при подключении нового монитора
+	notifier.OnConnect(func(monitorID uint) {
+		scheduleService.SendSchedulesToMonitor(monitorID)
+	})
 
-	//sch := utils.NewScheduler(scheduleService, socketServer, 30*time.Second)
-	//sch.Start()
+	// ⏰ Запуск планировщика
+	scheduleService.StartScheduler()
 
-	// Запуск
+	// 🚀 Старт сервера
 	fmt.Println("🚀 Сервер запущен на порту", cfg.ServerPort)
 	http.ListenAndServe(":"+cfg.ServerPort, r)
 }
