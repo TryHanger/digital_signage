@@ -33,3 +33,11 @@ func (r *MonitorRepository) GetByID(id uint) (*model.Monitor, error) {
 	}
 	return &monitor, nil
 }
+
+func (r *MonitorRepository) GetByToken(token string) (*model.Monitor, error) {
+	var monitor model.Monitor
+	if err := r.db.Preload("Location").First(&monitor, "token = ?", token).Error; err != nil {
+		return nil, err
+	}
+	return &monitor, nil
+}

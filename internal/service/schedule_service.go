@@ -7,6 +7,7 @@ import (
 	"github.com/TryHanger/digital_signage/internal/repository"
 	"github.com/TryHanger/digital_signage/internal/socket"
 	"gorm.io/gorm"
+	"log"
 	"time"
 )
 
@@ -21,7 +22,6 @@ func NewScheduleService(repo *repository.ScheduleRepository, cache *cache.Schedu
 }
 
 func (s *ScheduleService) CreateSchedule(schedule *model.Schedule) ([]model.Schedule, error) {
-	// Проверяем конфликты перед созданием
 	conflicts, err := s.repo.FindConflicts(schedule)
 	if err != nil {
 		return nil, err
@@ -31,13 +31,11 @@ func (s *ScheduleService) CreateSchedule(schedule *model.Schedule) ([]model.Sche
 		return conflicts, fmt.Errorf("conflict_with_existing")
 	}
 
-	// Транзакционно создаём новое расписание
 	err = s.repo.DB().Transaction(func(tx *gorm.DB) error {
 		if err := s.repo.Create(schedule); err != nil {
 			return err
 		}
 
-		// Добавляем в кэш точечно
 		s.cache.Add(*schedule)
 		return nil
 	})
@@ -45,11 +43,12 @@ func (s *ScheduleService) CreateSchedule(schedule *model.Schedule) ([]model.Sche
 		return nil, err
 	}
 
-	// Если расписание на сегодня — уведомляем мониторы
+	// ✅ Если на сегодня — уведомляем конкретный монитор
 	if s.isToday(schedule) {
-		//go s.notifier.BroadcastScheduleUpdate("created", schedule)
+		log.Printf("TODAY")
+		go s.notifier.NotifyScheduleUpdate(*schedule.MonitorID, *schedule)
 	}
-
+	log.Printf("📡 Расписание создано для монитора ID=%d", schedule.MonitorID)
 	return nil, nil
 }
 
@@ -88,12 +87,14 @@ func (s *ScheduleService) UpdateSchedules(schedules []model.Schedule) error {
 		return err
 	}
 
-	// Обновляем только нужные элементы в кэше
+	// Обновляем кэш и уведомляем мониторы
 	for _, sched := range schedules {
 		s.cache.Update(sched)
 
+		// ⚙️ Уведомляем только те мониторы, которые реально подключены
 		if s.isToday(&sched) {
-			//go s.notifier.BroadcastScheduleUpdate("updated", &sched)
+			go s.notifier.NotifyScheduleUpdate(*sched.MonitorID, sched)
+			log.Printf("📡 Расписание обновлено, уведомляем монитор %d", sched.MonitorID)
 		}
 	}
 
@@ -107,6 +108,8 @@ func (s *ScheduleService) LoadDailyCache() error {
 		return err
 	}
 	s.cache.Set(schedules)
+	log.Printf("📅 Загружаем расписания на день: %v", today)
+	log.Printf("🕒 Всего найдено %d расписаний", len(schedules))
 	return nil
 }
 
@@ -116,7 +119,9 @@ func (s *ScheduleService) GetCachedSchedules() []model.Schedule {
 
 func (s *ScheduleService) SendSchedulesToMonitor(monitorID uint) {
 	schedules := s.cache.GetByMonitorID(monitorID)
+	log.Printf("📋 Найдено %d расписаний для монитора %d", len(schedules), monitorID)
 	for _, schedule := range schedules {
+		log.Printf("Send notify")
 		s.notifier.NotifyScheduleUpdate(monitorID, schedule)
 	}
 }
@@ -133,6 +138,7 @@ func (s *ScheduleService) DeleteSchedule(id uint) error {
 
 	// Если удалённое расписание было на сегодня — уведомляем мониторы
 	if s.isToday(schedule) {
+		log.Printf("TODAY")
 		//go s.notifier.BroadcastScheduleUpdate("deleted", schedule)
 		s.notifier.NotifyScheduleUpdate(*schedule.MonitorID, *schedule)
 	}

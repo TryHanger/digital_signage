@@ -3,6 +3,8 @@ package service
 import (
 	"github.com/TryHanger/digital_signage/internal/model"
 	"github.com/TryHanger/digital_signage/internal/repository"
+	"github.com/TryHanger/digital_signage/internal/utils"
+	"strings"
 )
 
 type MonitorService struct {
@@ -18,5 +20,17 @@ func (s *MonitorService) GetAllMonitors() ([]model.Monitor, error) {
 }
 
 func (s *MonitorService) CreateMonitor(monitor *model.Monitor) error {
-	return s.repo.Create(monitor)
+	for {
+		monitor.Token = utils.GenerateShortToken()
+		err := s.repo.Create(monitor)
+		if err != nil {
+			if strings.Contains(err.Error(), "duplicate key") {
+				// Повтор токена — сгенерируем заново
+				continue
+			}
+			return err
+		}
+		break
+	}
+	return nil
 }

@@ -43,12 +43,21 @@ func (n *WebSocketNotifier) HandleConnection(conn *websocket.Conn) {
 			continue
 		}
 
-		event := payload["event"].(string)
-		data := payload["data"].(map[string]interface{})
+		event, ok := payload["event"].(string)
+		if !ok {
+			log.Println("⚠️ Неверный формат события")
+			continue
+		}
+
+		data, ok := payload["data"].(map[string]interface{})
+		if !ok {
+			log.Println("⚠️ Неверный формат данных")
+			continue
+		}
 
 		switch event {
 		case "register_monitor":
-			n.HandleRegister(conn, data)
+			n.handleRegisterByToken(conn, data)
 
 		default:
 			log.Printf("📩 Неизвестное событие: %s", event)
@@ -56,26 +65,30 @@ func (n *WebSocketNotifier) HandleConnection(conn *websocket.Conn) {
 	}
 }
 
-func (n *WebSocketNotifier) HandleRegister(conn *websocket.Conn, data map[string]interface{}) {
-	id := uint(data["id"].(float64))
+func (n *WebSocketNotifier) handleRegisterByToken(conn *websocket.Conn, data map[string]interface{}) {
+	token, ok := data["token"].(string)
+	if !ok || token == "" {
+		log.Println("❌ Токен монитора не передан")
+		return
+	}
 
-	monitor, err := n.monitorRepo.GetByID(id)
+	monitor, err := n.monitorRepo.GetByToken(token)
 	if err != nil {
-		log.Printf("❌ Не найден монитор %d: %v", id, err)
+		log.Printf("❌ Монитор с токеном %s не найден: %v", token, err)
 		return
 	}
 
 	n.mu.Lock()
-	n.connections[id] = conn
+	n.connections[monitor.ID] = conn
 	n.mu.Unlock()
 
-	log.Printf("🖥️ Монитор подключён: %s (ID: %d)", monitor.Name, monitor.ID)
+	log.Printf("🖥️ Монитор подключён: %s (ID: %d, Token: %s)", monitor.Name, monitor.ID, token)
 
 	if n.onConnect != nil {
 		n.onConnect(monitor.ID)
 	}
 
-	// Отправляем начальные данные
+	// Отправляем актуальные данные монитору
 	schedules := n.scheduleCache.GetByMonitorID(monitor.ID)
 	conn.WriteJSON(map[string]interface{}{
 		"event": "init_schedules",
@@ -101,6 +114,9 @@ func (n *WebSocketNotifier) NotifyScheduleUpdate(monitorID uint, schedule model.
 	if err := conn.WriteJSON(msg); err != nil {
 		log.Printf("❌ Ошибка отправки данных монитору %d: %v", monitorID, err)
 	}
+
+	log.Printf("📤 Отправка обновления расписания монитору %d", monitorID)
+
 }
 
 func (n *WebSocketNotifier) OnConnect(handler func(monitorID uint)) {

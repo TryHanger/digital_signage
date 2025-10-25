@@ -58,6 +58,8 @@ func Run() {
 			log.Println("❌ Ошибка апгрейда соединения:", err)
 			return
 		}
+
+		// Просто передаём управление сокет-обработчику
 		notifier.HandleConnection(conn)
 	})
 
@@ -68,13 +70,15 @@ func Run() {
 	scheduleHandler.RegisterRoutes(r)
 	locationHandler.RegisterRoutes(r)
 
+	scheduleService.StartScheduler()
+
 	// 🔔 Событие при подключении нового монитора
 	notifier.OnConnect(func(monitorID uint) {
 		scheduleService.SendSchedulesToMonitor(monitorID)
 	})
 
 	// ⏰ Запуск планировщика
-	scheduleService.StartScheduler()
+	// scheduleService.StartScheduler()
 
 	// 🚀 Старт сервера
 	fmt.Println("🚀 Сервер запущен на порту", cfg.ServerPort)
