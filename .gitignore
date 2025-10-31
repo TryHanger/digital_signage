@@ -10,9 +10,27 @@ text.txt
 советы.txt
 горутина.txt
 cache_handler.go
-frontend/
 расписание.txt
 все.txt
 front.txt
 go.sum
 monitor_client.py
+
+# Node
+node_modules/
+dist/
+.vite/
+npm-debug.log*
+yarn-error.log
+package-lock.json
+pnpm-lock.yaml
+
+# Env
+.env
+.env.local
+.env.*.local
+
+# Editor / OS
+.vscode/
+.DS_Store
+Thumbs.db
