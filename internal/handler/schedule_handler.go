@@ -1,11 +1,12 @@
 package handler
 
 import (
+	"net/http"
+	"strconv"
+
 	"github.com/TryHanger/digital_signage/internal/model"
 	"github.com/TryHanger/digital_signage/internal/service"
 	"github.com/gin-gonic/gin"
-	"net/http"
-	"strconv"
 )
 
 type ScheduleHandler struct {
@@ -16,8 +17,8 @@ func NewScheduleHandler(service *service.ScheduleService) *ScheduleHandler {
 	return &ScheduleHandler{service: service}
 }
 
-func (h *ScheduleHandler) RegisterRoutes(r *gin.Engine) {
-	group := r.Group("/schedules")
+func (h *ScheduleHandler) RegisterRoutes(rg *gin.RouterGroup) {
+	group := rg.Group("/schedules")
 	{
 		group.POST("/", h.Create)
 		group.GET("/", h.GetAll)

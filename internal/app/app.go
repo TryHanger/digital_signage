@@ -63,12 +63,13 @@ func Run() {
 		notifier.HandleConnection(conn)
 	})
 
-	// REST endpoints
-	r.GET("/cache/schedules", cacheHandler.GetCache)
-	monitorHandler.RegisterRoutes(r)
-	contentHandler.RegisterRoutes(r)
-	scheduleHandler.RegisterRoutes(r)
-	locationHandler.RegisterRoutes(r)
+	// REST endpoints under /api/v1
+	api := r.Group("/api/v1")
+	api.GET("/cache/schedules", cacheHandler.GetCache)
+	monitorHandler.RegisterRoutes(api)
+	contentHandler.RegisterRoutes(api)
+	scheduleHandler.RegisterRoutes(api)
+	locationHandler.RegisterRoutes(api)
 
 	scheduleService.StartScheduler()
 

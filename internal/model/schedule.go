@@ -4,13 +4,13 @@ import "time"
 
 type Schedule struct {
 	ID         uint          `json:"id" gorm:"primaryKey"`
-	ContentID  uint          `json:"content_id" gorm:"not null"`
-	MonitorID  *uint         `json:"monitor_id"`
-	LocationID *uint         `json:"location_id"`
-	StartTime  time.Time     `json:"start_time"`
-	EndTime    time.Time     `json:"end_time"`
+	ContentID  uint          `json:"contentID" gorm:"not null"`
+	MonitorID  *uint         `json:"monitorID"`
+	LocationID *uint         `json:"locationID"`
+	StartTime  time.Time     `json:"startTime"`
+	EndTime    time.Time     `json:"endTime"`
 	Priority   int           `json:"priority" gorm:"default:0"`
-	CreatedAt  time.Time     `json:"created_at"`
+	CreatedAt  time.Time     `json:"createdAt"`
 	Content    Content       `json:"content" gorm:"foreignKey:ContentID"`
 	Monitor    *Monitor      `json:"monitor" gorm:"foreignKey:MonitorID"`
 	Location   *Location     `json:"location" gorm:"foreignKey:LocationID"`
@@ -20,5 +20,5 @@ type Schedule struct {
 type ScheduleDay struct {
 	ID         uint      `gorm:"primaryKey"`
 	ScheduleID uint      `gorm:"not null;index"`
-	Date       time.Time `gorm:"not null"`
+	Date       time.Time `json:"date" gorm:"not null"`
 }

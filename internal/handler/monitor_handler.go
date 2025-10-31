@@ -1,9 +1,10 @@
 package handler
 
 import (
+	"net/http"
+
 	"github.com/TryHanger/digital_signage/internal/model"
 	"github.com/TryHanger/digital_signage/internal/service"
-	"net/http"
 
 	"github.com/gin-gonic/gin"
 )
@@ -16,8 +17,8 @@ func NewMonitorHandler(service *service.MonitorService) *MonitorHandler {
 	return &MonitorHandler{service: service}
 }
 
-func (h *MonitorHandler) RegisterRoutes(r *gin.Engine) {
-	group := r.Group("/monitors")
+func (h *MonitorHandler) RegisterRoutes(rg *gin.RouterGroup) {
+	group := rg.Group("/monitors")
 	group.GET("/", h.GetAll)
 	group.POST("/", h.Create)
 

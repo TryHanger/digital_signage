@@ -1,11 +1,12 @@
 package handler
 
 import (
+	"net/http"
+	"strconv"
+
 	"github.com/TryHanger/digital_signage/internal/model"
 	"github.com/TryHanger/digital_signage/internal/service"
 	"github.com/gin-gonic/gin"
-	"net/http"
-	"strconv"
 )
 
 type LocationHandler struct {
@@ -16,8 +17,8 @@ func NewLocationHandler(service *service.LocationService) *LocationHandler {
 	return &LocationHandler{service: service}
 }
 
-func (h *LocationHandler) RegisterRoutes(r *gin.Engine) {
-	group := r.Group("/locations")
+func (h *LocationHandler) RegisterRoutes(rg *gin.RouterGroup) {
+	group := rg.Group("/locations")
 	{
 		group.POST("/", h.Create)
 		group.GET("/", h.GetAll)

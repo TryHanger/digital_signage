@@ -1,7 +1,7 @@
 package model
 
 type Location struct {
-	ID       uint `gorm:"primary_key"`
-	Name     string
-	Monitors []Monitor `gorm:"foreignKey:LocationID"`
+	ID       uint      `json:"id" gorm:"primary_key"`
+	Name     string    `json:"name"`
+	Monitors []Monitor `json:"monitors" gorm:"foreignKey:LocationID"`
 }

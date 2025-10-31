@@ -69,20 +69,50 @@ func (n *WebSocketNotifier) handleRegisterByToken(conn *websocket.Conn, data map
 	token, ok := data["token"].(string)
 	if !ok || token == "" {
 		log.Println("❌ Токен монитора не передан")
+		conn.WriteJSON(map[string]interface{}{
+			"event": "error",
+			"data":  "token_required",
+		})
+		conn.Close()
 		return
 	}
 
 	monitor, err := n.monitorRepo.GetByToken(token)
 	if err != nil {
 		log.Printf("❌ Монитор с токеном %s не найден: %v", token, err)
+		conn.WriteJSON(map[string]interface{}{
+			"event": "error",
+			"data":  "invalid_token",
+		})
+		conn.Close()
 		return
 	}
 
+	// 🔒 Защита от одновременного доступа
 	n.mu.Lock()
+	if _, exists := n.connections[monitor.ID]; exists {
+		n.mu.Unlock()
+		log.Printf("⚠️ Монитор %s (ID: %d) уже подключён, закрываем новое соединение", monitor.Name, monitor.ID)
+		conn.WriteJSON(map[string]interface{}{
+			"event": "error",
+			"data":  "monitor_already_connected",
+		})
+		conn.Close()
+		return
+	}
+
 	n.connections[monitor.ID] = conn
 	n.mu.Unlock()
 
 	log.Printf("🖥️ Монитор подключён: %s (ID: %d, Token: %s)", monitor.Name, monitor.ID, token)
+
+	// 🧹 Гарантируем очистку соединения при выходе
+	defer func() {
+		n.mu.Lock()
+		delete(n.connections, monitor.ID)
+		n.mu.Unlock()
+		log.Printf("🔌 Монитор %s (ID: %d) отключён", monitor.Name, monitor.ID)
+	}()
 
 	if n.onConnect != nil {
 		n.onConnect(monitor.ID)
@@ -94,6 +124,15 @@ func (n *WebSocketNotifier) handleRegisterByToken(conn *websocket.Conn, data map
 		"event": "init_schedules",
 		"data":  schedules,
 	})
+
+	// ⏳ Читаем сообщения до закрытия (чтобы defer сработал)
+	for {
+		_, _, err := conn.ReadMessage()
+		if err != nil {
+			log.Printf("⚠️ Соединение с монитором %d закрыто: %v", monitor.ID, err)
+			break
+		}
+	}
 }
 
 func (n *WebSocketNotifier) NotifyScheduleUpdate(monitorID uint, schedule model.Schedule) {
