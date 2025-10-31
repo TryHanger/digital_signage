@@ -10,3 +10,9 @@ text.txt
 советы.txt
 горутина.txt
 cache_handler.go
+frontend/
+расписание.txt
+все.txt
+front.txt
+go.sum
+monitor_client.py
