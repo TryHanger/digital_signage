@@ -9,7 +9,7 @@ go test
 text.txt
 советы.txt
 горутина.txt
-cache_handler.go
+#cache_handler.go
 расписание.txt
 все.txt
 front.txt
@@ -26,7 +26,6 @@ package-lock.json
 pnpm-lock.yaml
 
 # Env
-.env
 .env.local
 .env.*.local
 
