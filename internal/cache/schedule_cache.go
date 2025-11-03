@@ -2,6 +2,7 @@ package cache
 
 import (
 	"github.com/TryHanger/digital_signage/internal/model"
+	"github.com/TryHanger/digital_signage/internal/utils"
 	"sync"
 	"time"
 )
@@ -64,14 +65,13 @@ func (c *ScheduleCache) GetAllToday() []model.Schedule {
 
 	today := time.Now().Truncate(24 * time.Hour)
 	var result []model.Schedule
+
 	for _, sched := range c.Schedules {
-		for _, d := range sched.Days {
-			if d.Date.Truncate(24 * time.Hour).Equal(today) {
-				result = append(result, sched)
-				break
-			}
+		if utils.IsActiveToday(sched, today) {
+			result = append(result, sched)
 		}
 	}
+
 	return result
 }
 

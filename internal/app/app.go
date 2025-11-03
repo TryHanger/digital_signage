@@ -20,14 +20,14 @@ func Run() {
 	cfg := config.Load()
 	db := repository.InitDB(cfg)
 
-	//db.Migrator().DropTable(&model.Location{}, &model.Monitor{}, &model.Content{}, &model.Schedule{}, &model.ScheduleDay{})
-	db.AutoMigrate(&model.Location{}, &model.Monitor{}, &model.Content{}, &model.Schedule{}, &model.ScheduleDay{})
-
+	db.Migrator().DropTable(&model.Location{}, &model.Monitor{}, &model.MonitorGroup{}, &model.Content{}, &model.Schedule{}, &model.ScheduleBlock{}, &model.ScheduleContent{}, &model.ScheduleException{}, &model.Template{}, &model.TemplateBlock{}, &model.TemplateContent{})
+	db.AutoMigrate(&model.Location{}, &model.Monitor{}, &model.MonitorGroup{}, &model.Content{}, &model.Schedule{}, &model.ScheduleBlock{}, &model.ScheduleContent{}, &model.ScheduleException{}, &model.Template{}, &model.TemplateBlock{}, &model.TemplateContent{})
 	// --- Repositories ---
 	monitorRepo := repository.NewMonitorRepository(db)
 	contentRepo := repository.NewContentRepository(db)
 	scheduleRepo := repository.NewScheduleRepository(db)
 	locationRepo := repository.NewLocationRepository(db)
+	templateRepo := repository.NewTemplateRepository(db)
 
 	// --- Cache ---
 	scheduleCache := cache.NewScheduleCache()
@@ -38,8 +38,9 @@ func Run() {
 	// --- Services ---
 	monitorService := service.NewMonitorService(monitorRepo)
 	contentService := service.NewContentService(contentRepo)
-	scheduleService := service.NewScheduleService(scheduleRepo, scheduleCache, notifier)
+	scheduleService := service.NewScheduleService(scheduleRepo)
 	locationService := service.NewLocationService(locationRepo)
+	templateService := service.NewTemplateService(templateRepo)
 
 	// --- Handlers ---
 	monitorHandler := handler.NewMonitorHandler(monitorService)
@@ -47,6 +48,7 @@ func Run() {
 	scheduleHandler := handler.NewScheduleHandler(scheduleService)
 	locationHandler := handler.NewLocationHandler(locationService)
 	cacheHandler := handler.NewCacheHandler(scheduleCache)
+	templateHandler := handler.NewTemplateHandler(templateService)
 
 	// --- Gin ---
 	r := gin.Default()
@@ -70,13 +72,14 @@ func Run() {
 	contentHandler.RegisterRoutes(api)
 	scheduleHandler.RegisterRoutes(api)
 	locationHandler.RegisterRoutes(api)
+	templateHandler.RegisterRoutes(api)
 
-	scheduleService.StartScheduler()
-
-	// 🔔 Событие при подключении нового монитора
-	notifier.OnConnect(func(monitorID uint) {
-		scheduleService.SendSchedulesToMonitor(monitorID)
-	})
+	//scheduleService.StartScheduler()
+	//
+	//// 🔔 Событие при подключении нового монитора
+	//notifier.OnConnect(func(monitorID uint) {
+	//	scheduleService.SendSchedulesToMonitor(monitorID)
+	//})
 
 	// ⏰ Запуск планировщика
 	// scheduleService.StartScheduler()

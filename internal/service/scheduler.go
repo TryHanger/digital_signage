@@ -1,25 +1,28 @@
 package service
 
 import (
-	"log"
 	"time"
+
+	"github.com/TryHanger/digital_signage/internal/model"
+	"github.com/TryHanger/digital_signage/internal/utils"
 )
 
-func (s *ScheduleService) StartScheduler() {
-	go func() {
-		for {
-			now := time.Now()
-			next := time.Date(now.Year(), now.Month(), now.Day()+1, 0, 0, 5, 0, now.Location())
-			sleepTime := next.Sub(now)
+func (s *ScheduleService) LoadDailyCache() error {
+	schedules, err := s.repo.GetAll() // получаем все расписания из БД
+	if err != nil {
+		return err
+	}
 
-			log.Println("⏳ Обновление кеша расписаний...")
-			if err := s.LoadDailyCache(); err != nil {
-				log.Printf("Ошибка обновления кеша: %v\n", err)
-			} else {
-				log.Println("✅ Кеш расписаний обновлён на текущий день.")
-			}
+	activeToday := []model.Schedule{}
+	today := time.Now().Truncate(24 * time.Hour)
 
-			time.Sleep(sleepTime)
+	for _, sched := range schedules {
+		if utils.IsActiveToday(sched, today) {
+			activeToday = append(activeToday, sched)
 		}
-	}()
+	}
+
+	// Обновляем кэш
+	// s.cache.Set(activeToday)
+	return nil
 }
