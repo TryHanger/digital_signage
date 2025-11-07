@@ -20,7 +20,7 @@ func Run() {
 	cfg := config.Load()
 	db := repository.InitDB(cfg)
 
-	db.Migrator().DropTable(&model.Location{}, &model.Monitor{}, &model.MonitorGroup{}, &model.Content{}, &model.Schedule{}, &model.ScheduleBlock{}, &model.ScheduleContent{}, &model.ScheduleException{}, &model.Template{}, &model.TemplateBlock{}, &model.TemplateContent{})
+	//db.Migrator().DropTable(&model.Location{}, &model.Monitor{}, &model.MonitorGroup{}, &model.Content{}, &model.Schedule{}, &model.ScheduleBlock{}, &model.ScheduleContent{}, &model.ScheduleException{}, &model.Template{}, &model.TemplateBlock{}, &model.TemplateContent{})
 	db.AutoMigrate(&model.Location{}, &model.Monitor{}, &model.MonitorGroup{}, &model.Content{}, &model.Schedule{}, &model.ScheduleBlock{}, &model.ScheduleContent{}, &model.ScheduleException{}, &model.Template{}, &model.TemplateBlock{}, &model.TemplateContent{})
 	// --- Repositories ---
 	monitorRepo := repository.NewMonitorRepository(db)

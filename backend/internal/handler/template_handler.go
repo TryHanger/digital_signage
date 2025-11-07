@@ -1,11 +1,12 @@
 package handler
 
 import (
+	"net/http"
+	"strconv"
+
 	"github.com/TryHanger/digital_signage/internal/model"
 	"github.com/TryHanger/digital_signage/internal/service"
 	"github.com/gin-gonic/gin"
-	"net/http"
-	"strconv"
 )
 
 type TemplateHandler struct {
@@ -22,6 +23,7 @@ func (h *TemplateHandler) RegisterRoutes(rg *gin.RouterGroup) {
 		group.GET("/", h.GetAll)
 		group.GET("/:id", h.GetByID)
 		group.POST("/", h.CreateTemplate)
+		group.PUT(":id", h.UpdateTemplate)
 		group.DELETE("/:id", h.Delete)
 
 	}
@@ -78,4 +80,26 @@ func (h *TemplateHandler) Delete(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "template deleted"})
+}
+
+func (h *TemplateHandler) UpdateTemplate(c *gin.Context) {
+	idParam := c.Param("id")
+	id, err := strconv.ParseUint(idParam, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	var template model.Template
+	if err := c.ShouldBindJSON(&template); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	template.ID = uint(id)
+
+	if err := h.service.UpdateTemplate(&template); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "template updated"})
 }
