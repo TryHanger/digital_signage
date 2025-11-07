@@ -1,7 +1,7 @@
 import type { FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { client} from '../api/client';
-import type { Schedule, Content, Monitor, Location } from '../api/client'
+import type { Schedule, Content, Monitor, Location, Template } from '../api/client'
 
 
 export default function SchedulesPage() {
@@ -9,6 +9,14 @@ export default function SchedulesPage() {
   const [contents, setContents] = useState<Content[]>([])
   const [monitors, setMonitors] = useState<Monitor[]>([])
   const [locations, setLocations] = useState<Location[]>([])
+  const [templates, setTemplates] = useState<Template[]>([])
+  const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(null)
+  const [schedName, setSchedName] = useState('')
+  const [dateStart, setDateStart] = useState('')
+  const [dateEnd, setDateEnd] = useState('')
+  const [repeatPattern, setRepeatPattern] = useState<'none'|'daily'|'weekly'|'monthly'>('none')
+  const [daysOfWeek, setDaysOfWeek] = useState<Record<number, boolean>>({0:false,1:false,2:false,3:false,4:false,5:false,6:false})
+  const [mode, setMode] = useState<'rotation'|'override'>('rotation')
   const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState<Schedule>({
     contentID: 0,
@@ -36,16 +44,18 @@ export default function SchedulesPage() {
   const loadData = async () => {
     setLoading(true)
     try {
-      const [schedulesData, contentsData, monitorsData, locationsData] = await Promise.all([
+      const [schedulesData, contentsData, monitorsData, locationsData, templatesData] = await Promise.all([
         client.schedules.getAll(),
         client.contents.getAll(),
         client.monitors.getAll(),
         client.locations.getAll(),
+        client.templates.getAll(),
       ])
       setSchedules(schedulesData)
       setContents(contentsData)
       setMonitors(monitorsData)
       setLocations(locationsData)
+      setTemplates(templatesData)
       setError('')
     } catch (err: any) {
       setError('Ошибка загрузки данных: ' + (err.message || 'Неизвестная ошибка'))
@@ -62,9 +72,25 @@ export default function SchedulesPage() {
     e.preventDefault()
     setError('')
     setSuccess('')
-    
+    // basic validation
+    if (repeatPattern === 'weekly') {
+      const anyDay = Object.values(daysOfWeek).some(Boolean)
+      if (!anyDay) return setError('Выберите хотя бы один день недели для повторения')
+    }
     try {
-      const result = await client.schedules.create(formData)
+      // build payload: include schedule metadata and template reference
+      const payload: any = {
+        ...formData,
+        name: schedName,
+        templateID: selectedTemplateId || undefined,
+        dateStart: dateStart || undefined,
+        dateEnd: dateEnd || undefined,
+        repeatPattern: repeatPattern === 'none' ? undefined : repeatPattern,
+        daysOfWeek: repeatPattern === 'weekly' ? Object.keys(daysOfWeek).filter(k => daysOfWeek[Number(k)]).map(Number) : undefined,
+        mode,
+      }
+
+      const result = await client.schedules.create(payload)
 
       if (result && typeof result === 'object' && 'error' in result && result.error) {
         // server returned conflicts — open resolve modal
@@ -112,6 +138,12 @@ export default function SchedulesPage() {
         endTime: '',
         priority: 0,
       })
+      setSchedName('')
+      setDateStart('')
+      setDateEnd('')
+      setRepeatPattern('none')
+      setDaysOfWeek({0:false,1:false,2:false,3:false,4:false,5:false,6:false})
+      setMode('rotation')
       loadData()
       setTimeout(() => setSuccess(''), 3000)
     } catch (err: any) {
@@ -159,8 +191,43 @@ export default function SchedulesPage() {
     const d = new Date(start)
     if (isNaN(d.getTime())) return start
     d.setMinutes(d.getMinutes() + minutes)
-    return d.toISOString()
+    // return in format compatible with <input type="datetime-local">: YYYY-MM-DDTHH:mm
+    const YYYY = d.getFullYear()
+    const MM = String(d.getMonth() + 1).padStart(2, '0')
+    const DD = String(d.getDate()).padStart(2, '0')
+    const hh = String(d.getHours()).padStart(2, '0')
+    const mm = String(d.getMinutes()).padStart(2, '0')
+    return `${YYYY}-${MM}-${DD}T${hh}:${mm}`
   }
+
+  // when user selects a template, prefill form (except startTime/endTime)
+  useEffect(() => {
+    if (!selectedTemplateId) return
+    const t = templates.find(x => x.id === selectedTemplateId)
+    if (!t) return
+    // if template has blocks, pick first content of first block to prefill contentID
+    if (Array.isArray(t.blocks) && t.blocks.length > 0) {
+      const firstBlock = t.blocks[0]
+      const firstContent = Array.isArray(firstBlock.contents) && firstBlock.contents.length > 0 ? firstBlock.contents[0] : null
+      if (firstContent) {
+        setFormData(prev => ({ ...prev, contentID: firstContent.contentID }))
+      }
+    }
+  }, [selectedTemplateId, templates])
+
+  // compute endTime automatically when startTime changes and a template with duration is selected
+  useEffect(() => {
+    if (!selectedTemplateId) return
+    const t = templates.find(x => x.id === selectedTemplateId)
+    if (!t || !Array.isArray(t.blocks) || t.blocks.length === 0) return
+    if (!formData.startTime) return
+    // compute total duration of first block (sum of content durations)
+    const firstBlock = t.blocks[0]
+    const totalSec = (firstBlock.contents || []).reduce((acc: number, c: any) => acc + (c.duration || 0), 0)
+    const minutes = Math.max(1, Math.ceil(totalSec / 60))
+    const end = computeEndTimeFromStart(formData.startTime, minutes)
+    setFormData(prev => ({ ...prev, endTime: end }))
+  }, [formData.startTime, selectedTemplateId, templates])
 
   const applyResolve = async () => {
     // build schedules to update
@@ -233,6 +300,16 @@ export default function SchedulesPage() {
       <div className="card">
         <h2 style={{ marginBottom: '16px' }}>Создать новое расписание</h2>
         <form onSubmit={handleSubmit}>
+          <div className="form-group">
+            <label>Шаблон (опционально)</label>
+            <select value={selectedTemplateId ?? ''} onChange={(e) => setSelectedTemplateId(e.target.value ? Number(e.target.value) : null)}>
+              <option value="">-- без шаблона --</option>
+              {templates.map((t) => (
+                <option key={t.id} value={t.id}>{t.name}</option>
+              ))}
+            </select>
+          </div>
+
           <div className="form-group">
             <label>Контент *</label>
             <select
@@ -311,6 +388,67 @@ export default function SchedulesPage() {
               onChange={(e) => setFormData({ ...formData, priority: Number(e.target.value) })}
               min="0"
             />
+          </div>
+
+          <div style={{ marginTop: 12 }}>
+            <h3>Дополнительно</h3>
+            <div className="form-group">
+              <label>Название расписания</label>
+              <input value={schedName} onChange={(e) => setSchedName(e.target.value)} />
+            </div>
+            <div className="form-row">
+              <div className="form-group">
+                <label>Дата начала</label>
+                <input type="date" value={dateStart} onChange={(e) => setDateStart(e.target.value)} />
+              </div>
+              <div className="form-group">
+                <label>Дата конца</label>
+                <input type="date" value={dateEnd} onChange={(e) => setDateEnd(e.target.value)} />
+              </div>
+            </div>
+            <div className="form-group">
+              <label>Режим</label>
+              <select value={mode} onChange={(e) => setMode(e.target.value as any)}>
+                <option value="rotation">rotation</option>
+                <option value="override">override</option>
+              </select>
+            </div>
+            <div className="form-group">
+              <label>Повторение</label>
+              <select value={repeatPattern} onChange={(e) => setRepeatPattern(e.target.value as any)}>
+                <option value="none">none</option>
+                <option value="daily">daily</option>
+                <option value="weekly">weekly</option>
+                <option value="monthly">monthly</option>
+              </select>
+            </div>
+            {repeatPattern === 'weekly' && (
+              <div className="form-group">
+                <label>Дни недели</label>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {['Вс','Пн','Вт','Ср','Чт','Пт','Сб'].map((d, i) => (
+                    <label key={i}><input type="checkbox" checked={daysOfWeek[i]} onChange={(e) => setDaysOfWeek(prev => ({ ...prev, [i]: e.target.checked }))} /> {d}</label>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div className="form-group">
+              <label>Привязать к шаблону</label>
+              <select value={selectedTemplateId ?? ''} onChange={(e) => setSelectedTemplateId(e.target.value ? Number(e.target.value) : null)}>
+                <option value="">-- без шаблона --</option>
+                {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </select>
+            </div>
+            {selectedTemplateId && (
+              <div style={{ marginTop: 8 }}>
+                <h4>Блоки шаблона</h4>
+                <ul>
+                  {(templates.find(t => t.id === selectedTemplateId)?.blocks || []).map((b, i) => (
+                    <li key={i}><strong>{b.name}</strong> {b.startTime}–{b.endTime} — содержимого: {(b.contents||[]).length}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
 
           <div className="toolbar">

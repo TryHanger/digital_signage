@@ -1,12 +1,15 @@
 import axios from 'axios'
 
+const API_BASE =
+    import.meta.env.DEV
+        ? '/api/v1'  // локальная разработка с vite proxy
+        : import.meta.env.VITE_API_URL + '/api/v1';
+
 const api = axios.create({
-  // Все запросы будут идти под /api/v1 — сервер теперь монтирует обработчики на этот префикс
-  baseURL: '/api/v1',
-  headers: {
-    'Content-Type': 'application/json',
-  },
-})
+  baseURL: API_BASE,
+  headers: { 'Content-Type': 'application/json' },
+});
+
 
 export type Location = {
   id?: number
@@ -53,6 +56,28 @@ export type Schedule = {
   monitor?: Monitor
   location?: Location
   days?: ScheduleDay[]
+}
+
+export type Template = {
+  id?: number
+  name: string
+  description?: string
+  createdAt?: string
+  blocks?: TemplateBlock[]
+}
+
+export type TemplateBlock = {
+  id?: number
+  name: string
+  startTime: string // "HH:MM"
+  endTime: string   // "HH:MM"
+  contents: TemplateBlockContent[]
+}
+
+export type TemplateBlockContent = {
+  id?: number
+  contentID: number
+  duration?: number // seconds
 }
 
 export const client = {
@@ -152,6 +177,20 @@ export const client = {
       const payload = (client as any)._time.formatSchedules(schedules)
       return api.put('/schedules/update', payload).then((r: any) => r.data)
     },
+  },
+  // Templates
+  templates: {
+    getAll: () => api.get<Template[]>('/templates').then((r: any) => {
+      const payload = r?.data
+      if (Array.isArray(payload)) return payload
+      if (payload && Array.isArray(payload.data)) return payload.data
+      console.warn('/templates returned unexpected shape, normalizing to []', payload)
+      return [] as Template[]
+    }),
+    create: (data: Template) => api.post<Template>('/templates', data).then((r: any) => r.data),
+  update: (id: number, data: any) => api.put<Template>(`/templates/${id}`, data).then((r: any) => r.data),
+  delete: (id: number) => api.delete(`/templates/${id}`),
+  getById: (id: number) => api.get<Template>(`/templates/${id}`).then((r: any) => r.data),
   },
 }
 

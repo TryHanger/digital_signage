@@ -3,8 +3,9 @@ import ContentsPage from './pages/ContentsPage'
 import LocationsPage from './pages/LocationsPage'
 import MonitorsPage from './pages/MonitorsPage'
 import SchedulesPage from './pages/SchedulesPage'
+import TemplatesPage from './pages/TemplatesPage'
 
-type Tab = 'locations' | 'monitors' | 'contents' | 'schedules'
+type Tab = 'locations' | 'monitors' | 'contents' | 'schedules' | 'templates'
 
 export default function App() {
     // по умолчанию открываем "Локации" как вы просили
@@ -27,6 +28,9 @@ export default function App() {
                     <button className={`nav-link ${tab === 'schedules' ? 'active' : ''}`} onClick={() => setTab('schedules')}>
                         Расписание
                     </button>
+                        <button className={`nav-link ${tab === 'templates' ? 'active' : ''}`} onClick={() => setTab('templates')}>
+                            Шаблоны
+                        </button>
                 </nav>
             </aside>
 
@@ -34,7 +38,8 @@ export default function App() {
                 {tab === 'contents' && <ContentsPage />}
                 {tab === 'locations' && <LocationsPage />}
                 {tab === 'monitors' && <MonitorsPage />}
-                {tab === 'schedules' && <SchedulesPage />}
+                    {tab === 'schedules' && <SchedulesPage />}
+                    {tab === 'templates' && <TemplatesPage />}
             </main>
         </div>
     )

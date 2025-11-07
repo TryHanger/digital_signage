@@ -3,7 +3,10 @@ go test
 *.exe
 *.out
 *.log
-.env
+backend/.env.local
+backend/.env.docker
+frontend/.env.local
+frontend/.env.docker
 
 .idea/
 text.txt
@@ -13,7 +16,7 @@ text.txt
 расписание.txt
 все.txt
 front.txt
-go.sum
+backend/go.sum
 monitor_client.py
 
 # Node
