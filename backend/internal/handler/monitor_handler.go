@@ -3,8 +3,8 @@ package handler
 import (
 	"net/http"
 
-	"github.com/TryHanger/digital_signage/internal/model"
-	"github.com/TryHanger/digital_signage/internal/service"
+	"github.com/TryHanger/digital_signage/backend/internal/model"
+	"github.com/TryHanger/digital_signage/backend/internal/service"
 
 	"github.com/gin-gonic/gin"
 )
@@ -19,8 +19,8 @@ func NewMonitorHandler(service *service.MonitorService) *MonitorHandler {
 
 func (h *MonitorHandler) RegisterRoutes(rg *gin.RouterGroup) {
 	group := rg.Group("/monitors")
-	group.GET("/", h.GetAll)
-	group.POST("/", h.Create)
+	group.GET("", h.GetAll)
+	group.POST("", h.Create)
 
 }
 

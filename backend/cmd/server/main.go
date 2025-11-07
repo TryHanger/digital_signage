@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/TryHanger/digital_signage/internal/app"
+	"github.com/TryHanger/digital_signage/backend/internal/app"
 )
 
 func main() {

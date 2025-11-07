@@ -4,8 +4,9 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/TryHanger/digital_signage/internal/model"
-	"github.com/TryHanger/digital_signage/internal/service"
+	"github.com/TryHanger/digital_signage/backend/internal/model"
+	"github.com/TryHanger/digital_signage/backend/internal/service"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -20,8 +21,8 @@ func NewLocationHandler(service *service.LocationService) *LocationHandler {
 func (h *LocationHandler) RegisterRoutes(rg *gin.RouterGroup) {
 	group := rg.Group("/locations")
 	{
-		group.POST("/", h.Create)
-		group.GET("/", h.GetAll)
+		group.POST("", h.Create)
+		group.GET("", h.GetAll)
 		group.GET("/:id", h.GetByID)
 		group.PUT("/:id", h.Update)
 		group.DELETE("/:id", h.Delete)

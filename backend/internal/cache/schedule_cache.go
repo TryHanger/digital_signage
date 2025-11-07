@@ -1,8 +1,8 @@
 package cache
 
 import (
-	"github.com/TryHanger/digital_signage/internal/model"
-	"github.com/TryHanger/digital_signage/internal/utils"
+	"github.com/TryHanger/digital_signage/backend/internal/model"
+	"github.com/TryHanger/digital_signage/backend/internal/utils"
 	"sync"
 	"time"
 )

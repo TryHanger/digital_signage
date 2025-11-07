@@ -1,0 +1,42 @@
+services:
+  db:
+    image: postgres:16
+    container_name: signage-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: digital_signage
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  backend:
+    build: ./backend
+    container_name: signage-backend
+    env_file:
+      - ./backend/.env.docker
+    ports:
+      - "8090:8080"
+    depends_on:
+      - db
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # Браузер, который загружает JS из контейнера frontend, резолвит имена в контексте хоста,
+        # поэтому внутри bundle должен быть адрес, доступный из браузера (localhost:8090).
+        # Раньше был указан hostname из Docker-сети (signage-backend), который недоступен из браузера.
+        VITE_API_URL: http://localhost:8090
+    container_name: signage-frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  postgres_data:

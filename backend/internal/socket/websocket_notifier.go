@@ -2,12 +2,12 @@ package socket
 
 import (
 	"encoding/json"
+	"github.com/TryHanger/digital_signage/backend/internal/cache"
+	"github.com/TryHanger/digital_signage/backend/internal/model"
+	"github.com/TryHanger/digital_signage/backend/internal/repository"
 	"log"
 	"sync"
 
-	"github.com/TryHanger/digital_signage/internal/cache"
-	"github.com/TryHanger/digital_signage/internal/model"
-	"github.com/TryHanger/digital_signage/internal/repository"
 	"github.com/gorilla/websocket"
 )
 

@@ -1,7 +1,7 @@
 package utils
 
 import (
-	"github.com/TryHanger/digital_signage/internal/model"
+	"github.com/TryHanger/digital_signage/backend/internal/model"
 	"time"
 )
 

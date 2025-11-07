@@ -1,9 +1,9 @@
 package handler
 
 import (
+	"github.com/TryHanger/digital_signage/backend/internal/cache"
 	"net/http"
 
-	"github.com/TryHanger/digital_signage/internal/cache"
 	"github.com/gin-gonic/gin"
 )
 

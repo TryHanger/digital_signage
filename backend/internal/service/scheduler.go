@@ -1,10 +1,9 @@
 package service
 
 import (
+	"github.com/TryHanger/digital_signage/backend/internal/model"
+	"github.com/TryHanger/digital_signage/backend/internal/utils"
 	"time"
-
-	"github.com/TryHanger/digital_signage/internal/model"
-	"github.com/TryHanger/digital_signage/internal/utils"
 )
 
 func (s *ScheduleService) LoadDailyCache() error {

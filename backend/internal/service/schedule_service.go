@@ -2,10 +2,9 @@ package service
 
 import (
 	"errors"
+	"github.com/TryHanger/digital_signage/backend/internal/model"
+	"github.com/TryHanger/digital_signage/backend/internal/repository"
 	"time"
-
-	"github.com/TryHanger/digital_signage/internal/model"
-	"github.com/TryHanger/digital_signage/internal/repository"
 )
 
 type ScheduleService struct {

@@ -5,29 +5,31 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/TryHanger/digital_signage/internal/cache"
-	"github.com/TryHanger/digital_signage/internal/config"
-	"github.com/TryHanger/digital_signage/internal/handler"
-	"github.com/TryHanger/digital_signage/internal/model"
-	"github.com/TryHanger/digital_signage/internal/repository"
-	"github.com/TryHanger/digital_signage/internal/service"
-	"github.com/TryHanger/digital_signage/internal/socket"
+	"github.com/TryHanger/digital_signage/backend/internal/cache"
+	"github.com/TryHanger/digital_signage/backend/internal/config"
+	handler2 "github.com/TryHanger/digital_signage/backend/internal/handler"
+	model2 "github.com/TryHanger/digital_signage/backend/internal/model"
+	repository2 "github.com/TryHanger/digital_signage/backend/internal/repository"
+	service2 "github.com/TryHanger/digital_signage/backend/internal/service"
+	"github.com/TryHanger/digital_signage/backend/internal/socket"
+	"github.com/gin-contrib/cors"
+
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 )
 
 func Run() {
 	cfg := config.Load()
-	db := repository.InitDB(cfg)
+	db := repository2.InitDB(cfg)
 
 	//db.Migrator().DropTable(&model.Location{}, &model.Monitor{}, &model.MonitorGroup{}, &model.Content{}, &model.Schedule{}, &model.ScheduleBlock{}, &model.ScheduleContent{}, &model.ScheduleException{}, &model.Template{}, &model.TemplateBlock{}, &model.TemplateContent{})
-	db.AutoMigrate(&model.Location{}, &model.Monitor{}, &model.MonitorGroup{}, &model.Content{}, &model.Schedule{}, &model.ScheduleBlock{}, &model.ScheduleContent{}, &model.ScheduleException{}, &model.Template{}, &model.TemplateBlock{}, &model.TemplateContent{})
+	db.AutoMigrate(&model2.Location{}, &model2.Monitor{}, &model2.MonitorGroup{}, &model2.Content{}, &model2.Schedule{}, &model2.ScheduleBlock{}, &model2.ScheduleContent{}, &model2.ScheduleException{}, &model2.Template{}, &model2.TemplateBlock{}, &model2.TemplateContent{})
 	// --- Repositories ---
-	monitorRepo := repository.NewMonitorRepository(db)
-	contentRepo := repository.NewContentRepository(db)
-	scheduleRepo := repository.NewScheduleRepository(db)
-	locationRepo := repository.NewLocationRepository(db)
-	templateRepo := repository.NewTemplateRepository(db)
+	monitorRepo := repository2.NewMonitorRepository(db)
+	contentRepo := repository2.NewContentRepository(db)
+	scheduleRepo := repository2.NewScheduleRepository(db)
+	locationRepo := repository2.NewLocationRepository(db)
+	templateRepo := repository2.NewTemplateRepository(db)
 
 	// --- Cache ---
 	scheduleCache := cache.NewScheduleCache()
@@ -36,22 +38,40 @@ func Run() {
 	notifier := socket.NewWebSocketNotifier(monitorRepo, scheduleCache)
 
 	// --- Services ---
-	monitorService := service.NewMonitorService(monitorRepo)
-	contentService := service.NewContentService(contentRepo)
-	scheduleService := service.NewScheduleService(scheduleRepo)
-	locationService := service.NewLocationService(locationRepo)
-	templateService := service.NewTemplateService(templateRepo)
+	monitorService := service2.NewMonitorService(monitorRepo)
+	contentService := service2.NewContentService(contentRepo)
+	scheduleService := service2.NewScheduleService(scheduleRepo)
+	locationService := service2.NewLocationService(locationRepo)
+	templateService := service2.NewTemplateService(templateRepo)
 
 	// --- Handlers ---
-	monitorHandler := handler.NewMonitorHandler(monitorService)
-	contentHandler := handler.NewContentHandler(contentService)
-	scheduleHandler := handler.NewScheduleHandler(scheduleService)
-	locationHandler := handler.NewLocationHandler(locationService)
-	cacheHandler := handler.NewCacheHandler(scheduleCache)
-	templateHandler := handler.NewTemplateHandler(templateService)
+	monitorHandler := handler2.NewMonitorHandler(monitorService)
+	contentHandler := handler2.NewContentHandler(contentService)
+	scheduleHandler := handler2.NewScheduleHandler(scheduleService)
+	locationHandler := handler2.NewLocationHandler(locationService)
+	cacheHandler := handler2.NewCacheHandler(scheduleCache)
+	templateHandler := handler2.NewTemplateHandler(templateService)
 
 	// --- Gin ---
 	r := gin.Default()
+
+	r.Use(cors.New(cors.Config{
+		AllowOrigins: []string{
+			"http://localhost:3000",
+			"http://127.0.0.1:3000",
+			"http://localhost:5173",
+		},
+		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization"},
+		ExposeHeaders:    []string{"Content-Length"},
+		AllowCredentials: true, // разрешаем куки и авторизацию
+	}))
+
+	r.OPTIONS("/*path", func(c *gin.Context) {
+		c.Status(200)
+	})
+
+	r.RedirectTrailingSlash = false
 
 	// 🔌 WebSocket endpoint
 	r.GET("/ws", func(c *gin.Context) {
@@ -86,5 +106,8 @@ func Run() {
 
 	// 🚀 Старт сервера
 	fmt.Println("🚀 Сервер запущен на порту", cfg.ServerPort)
-	http.ListenAndServe(":"+cfg.ServerPort, r)
+	err := http.ListenAndServe(":"+cfg.ServerPort, r)
+	if err != nil {
+		log.Fatal(err)
+	}
 }

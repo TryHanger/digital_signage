@@ -1,7 +1,7 @@
 package repository
 
 import (
-	"github.com/TryHanger/digital_signage/internal/model"
+	"github.com/TryHanger/digital_signage/backend/internal/model"
 	"gorm.io/gorm"
 )
 

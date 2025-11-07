@@ -1,7 +1,7 @@
 package service
 
 import (
-	"github.com/TryHanger/digital_signage/internal/socket"
+	"github.com/TryHanger/digital_signage/backend/internal/socket"
 	"log"
 )
 

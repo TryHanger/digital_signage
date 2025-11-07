@@ -4,8 +4,9 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/TryHanger/digital_signage/internal/model"
-	"github.com/TryHanger/digital_signage/internal/service"
+	"github.com/TryHanger/digital_signage/backend/internal/model"
+	"github.com/TryHanger/digital_signage/backend/internal/service"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -20,8 +21,8 @@ func NewScheduleHandler(service *service.ScheduleService) *ScheduleHandler {
 func (h *ScheduleHandler) RegisterRoutes(rg *gin.RouterGroup) {
 	group := rg.Group("/schedules")
 	{
-		group.POST("/", h.CreateSchedule)
-		group.GET("/", h.GetSchedules)
+		group.POST("", h.CreateSchedule)
+		group.GET("", h.GetSchedules)
 		group.GET("/:id", h.GetScheduleByID)
 		group.DELETE("/:id", h.DeleteSchedule)
 	}

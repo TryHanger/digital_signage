@@ -4,8 +4,9 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/TryHanger/digital_signage/internal/model"
-	"github.com/TryHanger/digital_signage/internal/service"
+	"github.com/TryHanger/digital_signage/backend/internal/model"
+	"github.com/TryHanger/digital_signage/backend/internal/service"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -20,10 +21,12 @@ func NewTemplateHandler(service *service.TemplateService) *TemplateHandler {
 func (h *TemplateHandler) RegisterRoutes(rg *gin.RouterGroup) {
 	group := rg.Group("/templates")
 	{
-		group.GET("/", h.GetAll)
+		// Register routes without trailing slash to avoid Gin's automatic 301 redirect
+		// (redirect responses may not include CORS headers and break browser requests).
+		group.GET("", h.GetAll)
 		group.GET("/:id", h.GetByID)
-		group.POST("/", h.CreateTemplate)
-		group.PUT(":id", h.UpdateTemplate)
+		group.POST("", h.CreateTemplate)
+		group.PUT("/:id", h.UpdateTemplate)
 		group.DELETE("/:id", h.Delete)
 
 	}

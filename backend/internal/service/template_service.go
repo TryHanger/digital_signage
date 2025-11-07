@@ -2,10 +2,9 @@ package service
 
 import (
 	"fmt"
+	"github.com/TryHanger/digital_signage/backend/internal/model"
+	"github.com/TryHanger/digital_signage/backend/internal/repository"
 	"sort"
-
-	"github.com/TryHanger/digital_signage/internal/model"
-	"github.com/TryHanger/digital_signage/internal/repository"
 )
 
 type TemplateService struct {
