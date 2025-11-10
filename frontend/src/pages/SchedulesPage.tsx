@@ -1,7 +1,7 @@
-import type { FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { client} from '../api/client';
 import type { Schedule, Content, Monitor, Location, Template } from '../api/client'
+import ScheduleModal from '../components/ScheduleModal'
 
 
 export default function SchedulesPage() {
@@ -10,22 +10,8 @@ export default function SchedulesPage() {
   const [monitors, setMonitors] = useState<Monitor[]>([])
   const [locations, setLocations] = useState<Location[]>([])
   const [templates, setTemplates] = useState<Template[]>([])
-  const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(null)
-  const [schedName, setSchedName] = useState('')
-  const [dateStart, setDateStart] = useState('')
-  const [dateEnd, setDateEnd] = useState('')
-  const [repeatPattern, setRepeatPattern] = useState<'none'|'daily'|'weekly'|'monthly'>('none')
-  const [daysOfWeek, setDaysOfWeek] = useState<Record<number, boolean>>({0:false,1:false,2:false,3:false,4:false,5:false,6:false})
-  const [mode, setMode] = useState<'rotation'|'override'>('rotation')
   const [loading, setLoading] = useState(false)
-  const [formData, setFormData] = useState<Schedule>({
-    contentID: 0,
-    monitorID: undefined,
-    locationID: undefined,
-    startTime: '',
-    endTime: '',
-    priority: 0,
-  })
+  // form state is handled in the modal component
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [resolveOpen, setResolveOpen] = useState(false)
@@ -40,6 +26,7 @@ export default function SchedulesPage() {
     isNew?: boolean
     durationM?: number
   }>>([])
+  const [showModal, setShowModal] = useState(false)
 
   const loadData = async () => {
     setLoading(true)
@@ -66,95 +53,10 @@ export default function SchedulesPage() {
 
   useEffect(() => {
     loadData()
+
   }, [])
 
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault()
-    setError('')
-    setSuccess('')
-    // basic validation
-    if (repeatPattern === 'weekly') {
-      const anyDay = Object.values(daysOfWeek).some(Boolean)
-      if (!anyDay) return setError('Выберите хотя бы один день недели для повторения')
-    }
-    try {
-      // build payload: include schedule metadata and template reference
-      const payload: any = {
-        ...formData,
-        name: schedName,
-        templateID: selectedTemplateId || undefined,
-        dateStart: dateStart || undefined,
-        dateEnd: dateEnd || undefined,
-        repeatPattern: repeatPattern === 'none' ? undefined : repeatPattern,
-        daysOfWeek: repeatPattern === 'weekly' ? Object.keys(daysOfWeek).filter(k => daysOfWeek[Number(k)]).map(Number) : undefined,
-        mode,
-      }
 
-      const result = await client.schedules.create(payload)
-
-      if (result && typeof result === 'object' && 'error' in result && result.error) {
-        // server returned conflicts — open resolve modal
-        const conflicts: Schedule[] = (result as any).conflicts || []
-        // include attempted schedule first
-        const attempted = {
-          ...formData,
-          isNew: true,
-        } as any
-
-        const items = [attempted, ...conflicts].map((s: any) => {
-          // compute duration in minutes
-          let durationM = 0
-          try {
-            const st = new Date(s.startTime)
-            const et = new Date(s.endTime)
-            if (!isNaN(st.getTime()) && !isNaN(et.getTime())) {
-              durationM = Math.max(1, Math.round((et.getTime() - st.getTime()) / 60000))
-            }
-          } catch {}
-          return {
-            id: s.id,
-            contentID: s.contentID,
-            monitorID: s.monitorID,
-            locationID: s.locationID,
-            startTime: s.startTime,
-            endTime: s.endTime,
-            priority: s.priority || 0,
-            isNew: !!s.isNew,
-            durationM,
-          }
-        })
-
-        setResolveItems(items)
-        setResolveOpen(true)
-        return
-      }
-
-      setSuccess('Расписание успешно создано')
-      setFormData({
-        contentID: 0,
-        monitorID: undefined,
-        locationID: undefined,
-        startTime: '',
-        endTime: '',
-        priority: 0,
-      })
-      setSchedName('')
-      setDateStart('')
-      setDateEnd('')
-      setRepeatPattern('none')
-      setDaysOfWeek({0:false,1:false,2:false,3:false,4:false,5:false,6:false})
-      setMode('rotation')
-      loadData()
-      setTimeout(() => setSuccess(''), 3000)
-    } catch (err: any) {
-      const errorMsg = err.response?.data?.error || err.message || 'Неизвестная ошибка'
-      if (err.response?.status === 409) {
-        setError(`Конфликт времени: ${errorMsg}`)
-      } else {
-        setError('Ошибка: ' + errorMsg)
-      }
-    }
-  }
 
   const handleDelete = async (id: number) => {
     if (!confirm('Удалить это расписание?')) return
@@ -201,33 +103,7 @@ export default function SchedulesPage() {
   }
 
   // when user selects a template, prefill form (except startTime/endTime)
-  useEffect(() => {
-    if (!selectedTemplateId) return
-    const t = templates.find(x => x.id === selectedTemplateId)
-    if (!t) return
-    // if template has blocks, pick first content of first block to prefill contentID
-    if (Array.isArray(t.blocks) && t.blocks.length > 0) {
-      const firstBlock = t.blocks[0]
-      const firstContent = Array.isArray(firstBlock.contents) && firstBlock.contents.length > 0 ? firstBlock.contents[0] : null
-      if (firstContent) {
-        setFormData(prev => ({ ...prev, contentID: firstContent.contentID }))
-      }
-    }
-  }, [selectedTemplateId, templates])
-
-  // compute endTime automatically when startTime changes and a template with duration is selected
-  useEffect(() => {
-    if (!selectedTemplateId) return
-    const t = templates.find(x => x.id === selectedTemplateId)
-    if (!t || !Array.isArray(t.blocks) || t.blocks.length === 0) return
-    if (!formData.startTime) return
-    // compute total duration of first block (sum of content durations)
-    const firstBlock = t.blocks[0]
-    const totalSec = (firstBlock.contents || []).reduce((acc: number, c: any) => acc + (c.duration || 0), 0)
-    const minutes = Math.max(1, Math.ceil(totalSec / 60))
-    const end = computeEndTimeFromStart(formData.startTime, minutes)
-    setFormData(prev => ({ ...prev, endTime: end }))
-  }, [formData.startTime, selectedTemplateId, templates])
+  
 
   const applyResolve = async () => {
     // build schedules to update
@@ -272,9 +148,40 @@ export default function SchedulesPage() {
     }
   }
 
-  const getContentName = (contentID: number) => {
-    const content = contents.find(c => c.id === contentID)
-    return content ? content.title : `ID: ${contentID}`
+  // monitor/target details modal
+  const [targetDetails, setTargetDetails] = useState<null | {
+    scheduleId?: number
+    location?: Location | null
+    groupName?: string | null
+    monitors?: Array<{ id?: number; name?: string }>
+  }>(null)
+
+  const openTargetDetails = (s: Schedule) => {
+    const loc = (s as any).location ?? (s.locationID ? locations.find(l => l.id === s.locationID) : null)
+    const groupName = (s as any).group?.name ?? (s.groupId ? `Группа ${s.groupId}` : null)
+    let mons: Array<{ id?: number; name?: string }> = []
+    if (Array.isArray((s as any).monitors) && (s as any).monitors.length > 0) {
+      mons = (s as any).monitors.map((m: any) => ({ id: m.id, name: m.name || monitors.find(mm => mm.id === m.id)?.name }))
+    } else if (s.monitorID) {
+      const m = monitors.find(mm => mm.id === s.monitorID)
+      if (m) mons = [{ id: m.id, name: m.name }]
+    }
+
+    setTargetDetails({ scheduleId: s.id, location: loc || null, groupName: groupName || null, monitors: mons })
+  }
+
+  const closeTargetDetails = () => setTargetDetails(null)
+
+  const getContentName = (arg: Schedule | number) => {
+    if (typeof arg === 'number') {
+      const content = contents.find(c => c.id === arg)
+      return content ? content.title : (typeof arg === 'number' ? `ID: ${arg}` : '-')
+    }
+    const s = arg as Schedule
+    if (s.content && s.content.title) return s.content.title
+    if ((s as any).name) return (s as any).name
+    if (typeof s.contentID !== 'undefined' && s.contentID !== null) return `ID: ${s.contentID}`
+    return '-'
   }
 
   const getMonitorName = (monitorID?: number) => {
@@ -296,166 +203,24 @@ export default function SchedulesPage() {
       {error && <div className="alert alert-error">{error}</div>}
       {success && <div className="alert alert-success">{success}</div>}
 
-      {/* Create card */}
+      {/* Create button card (opens modal) */}
       <div className="card">
-        <h2 style={{ marginBottom: '16px' }}>Создать новое расписание</h2>
-        <form onSubmit={handleSubmit}>
-          <div className="form-group">
-            <label>Шаблон (опционально)</label>
-            <select value={selectedTemplateId ?? ''} onChange={(e) => setSelectedTemplateId(e.target.value ? Number(e.target.value) : null)}>
-              <option value="">-- без шаблона --</option>
-              {templates.map((t) => (
-                <option key={t.id} value={t.id}>{t.name}</option>
-              ))}
-            </select>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h2 style={{ margin: 0 }}>Создать новое расписание</h2>
+          <div>
+            <button className="btn btn-primary" onClick={() => setShowModal(true)}>Создать расписание</button>
           </div>
-
-          <div className="form-group">
-            <label>Контент *</label>
-            <select
-              value={formData.contentID}
-              onChange={(e) => setFormData({ ...formData, contentID: Number(e.target.value) })}
-              required
-            >
-              <option value={0}>Выберите контент</option>
-              {contents.map((content, i) => (
-                <option key={content.id ?? `content-${i}`} value={content.id}>
-                  {content.title} ({content.type})
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="form-row">
-            <div className="form-group">
-              <label>Монитор</label>
-              <select
-                value={formData.monitorID || ''}
-                onChange={(e) => setFormData({ ...formData, monitorID: e.target.value ? Number(e.target.value) : undefined })}
-              >
-                <option value="">Не выбран (для всех мониторов)</option>
-                {monitors.map((monitor, i) => (
-                  <option key={monitor.id ?? `monitor-${i}`} value={monitor.id}>
-                    {monitor.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="form-group">
-              <label>Локация</label>
-              <select
-                value={formData.locationID || ''}
-                onChange={(e) => setFormData({ ...formData, locationID: e.target.value ? Number(e.target.value) : undefined })}
-              >
-                <option value="">Не выбрана</option>
-                {locations.map((location, i) => (
-                  <option key={location.id ?? `loc-${i}`} value={location.id}>
-                    {location.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div className="form-row">
-            <div className="form-group">
-              <label>Начало *</label>
-              <input
-                type="datetime-local"
-                value={formData.startTime}
-                onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
-                required
-              />
-            </div>
-
-            <div className="form-group">
-              <label>Окончание *</label>
-              <input
-                type="datetime-local"
-                value={formData.endTime}
-                onChange={(e) => setFormData({ ...formData, endTime: e.target.value })}
-                required
-              />
-            </div>
-          </div>
-
-          <div className="form-group">
-            <label>Приоритет</label>
-            <input
-              type="number"
-              value={formData.priority || 0}
-              onChange={(e) => setFormData({ ...formData, priority: Number(e.target.value) })}
-              min="0"
-            />
-          </div>
-
-          <div style={{ marginTop: 12 }}>
-            <h3>Дополнительно</h3>
-            <div className="form-group">
-              <label>Название расписания</label>
-              <input value={schedName} onChange={(e) => setSchedName(e.target.value)} />
-            </div>
-            <div className="form-row">
-              <div className="form-group">
-                <label>Дата начала</label>
-                <input type="date" value={dateStart} onChange={(e) => setDateStart(e.target.value)} />
-              </div>
-              <div className="form-group">
-                <label>Дата конца</label>
-                <input type="date" value={dateEnd} onChange={(e) => setDateEnd(e.target.value)} />
-              </div>
-            </div>
-            <div className="form-group">
-              <label>Режим</label>
-              <select value={mode} onChange={(e) => setMode(e.target.value as any)}>
-                <option value="rotation">rotation</option>
-                <option value="override">override</option>
-              </select>
-            </div>
-            <div className="form-group">
-              <label>Повторение</label>
-              <select value={repeatPattern} onChange={(e) => setRepeatPattern(e.target.value as any)}>
-                <option value="none">none</option>
-                <option value="daily">daily</option>
-                <option value="weekly">weekly</option>
-                <option value="monthly">monthly</option>
-              </select>
-            </div>
-            {repeatPattern === 'weekly' && (
-              <div className="form-group">
-                <label>Дни недели</label>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  {['Вс','Пн','Вт','Ср','Чт','Пт','Сб'].map((d, i) => (
-                    <label key={i}><input type="checkbox" checked={daysOfWeek[i]} onChange={(e) => setDaysOfWeek(prev => ({ ...prev, [i]: e.target.checked }))} /> {d}</label>
-                  ))}
-                </div>
-              </div>
-            )}
-            <div className="form-group">
-              <label>Привязать к шаблону</label>
-              <select value={selectedTemplateId ?? ''} onChange={(e) => setSelectedTemplateId(e.target.value ? Number(e.target.value) : null)}>
-                <option value="">-- без шаблона --</option>
-                {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-              </select>
-            </div>
-            {selectedTemplateId && (
-              <div style={{ marginTop: 8 }}>
-                <h4>Блоки шаблона</h4>
-                <ul>
-                  {(templates.find(t => t.id === selectedTemplateId)?.blocks || []).map((b, i) => (
-                    <li key={i}><strong>{b.name}</strong> {b.startTime}–{b.endTime} — содержимого: {(b.contents||[]).length}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </div>
-
-          <div className="toolbar">
-            <button type="submit" className="btn btn-primary">Создать</button>
-          </div>
-        </form>
+        </div>
       </div>
+
+      <ScheduleModal
+        visible={showModal}
+        onClose={() => setShowModal(false)}
+        onCreated={() => { setShowModal(false); loadData() }}
+        monitors={monitors}
+        locations={locations}
+        templates={templates}
+      />
 
       {/* List card */}
       <div className="card">
@@ -486,12 +251,33 @@ export default function SchedulesPage() {
                 {schedules.map((schedule, i) => (
                   <tr key={schedule.id ?? `schedule-${i}`}>
                     <td>{schedule.id}</td>
-                    <td>{getContentName(schedule.contentID)}</td>
-                    <td>{getMonitorName(schedule.monitorID)}</td>
-                    <td>{getLocationName(schedule.locationID)}</td>
+                                    <td>{getContentName(schedule)}</td>
+                                    <td>
+                                      <button className="link" onClick={() => openTargetDetails(schedule)} style={{ background: 'none', border: 'none', padding: 0, color: '#0366d6', cursor: 'pointer' }}>
+                                        {(() => {
+                                          // compact summary
+                                          if ((schedule as any).location?.name) return (schedule as any).location.name
+                                          if (schedule.locationID) {
+                                            const l = locations.find(ll => ll.id === schedule.locationID)
+                                            if (l) return l.name
+                                          }
+                                          if ((schedule as any).group?.name) return (schedule as any).group.name
+                                          if ((schedule as any).monitors && (schedule as any).monitors.length > 0) {
+                                            const mons = (schedule as any).monitors
+                                            // show first monitor name or count
+                                            const first = mons[0]
+                                            const firstName = first?.name || monitors.find(mm => mm.id === first?.id)?.name
+                                            return firstName ? firstName + (mons.length > 1 ? ` (+${mons.length-1})` : '') : `${mons.length} мониторов`
+                                          }
+                                          if (schedule.monitorID) return getMonitorName(schedule.monitorID)
+                                          return '-'
+                                        })()
+                                      }</button>
+                                    </td>
+                                    <td>{getLocationName(schedule.locationID)}</td>
                     <td>{formatDateTime(schedule.startTime)}</td>
                     <td>{formatDateTime(schedule.endTime)}</td>
-                    <td>{schedule.priority || 0}</td>
+                    <td>{typeof schedule.priority === 'number' ? schedule.priority : '-'}</td>
                     <td>
                       <button className="btn btn-danger" onClick={() => schedule.id && handleDelete(schedule.id)}>Удалить</button>
                     </td>
@@ -501,6 +287,34 @@ export default function SchedulesPage() {
             </table>
           </div>
         )}
+
+          {/* Targets details modal */}
+          {targetDetails && (
+            <div className="modal-overlay" onClick={closeTargetDetails}>
+              <div className="modal" onClick={(e) => e.stopPropagation()}>
+                <div className="modal-header">
+                  <h3 style={{ margin: 0 }}>Детали целевых устройств</h3>
+                  <button className="modal-close" onClick={closeTargetDetails}>×</button>
+                </div>
+                <div className="modal-body">
+                  {targetDetails.location ? (
+                    <div style={{ marginBottom: 8 }}><strong>Локация:</strong> {targetDetails.location.name}</div>
+                  ) : null}
+                  {targetDetails.groupName ? (
+                    <div style={{ marginBottom: 8 }}><strong>Группа:</strong> {targetDetails.groupName}</div>
+                  ) : null}
+                  {targetDetails.monitors && targetDetails.monitors.length > 0 ? (
+                    <div>
+                      <strong>Мониторы:</strong>
+                      <ul>
+                        {targetDetails.monitors.map(m => (<li key={m.id ?? m.name}>{m.name ?? `ID:${m.id}`}</li>))}
+                      </ul>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+          )}
       </div>
 
       {/* Resolve conflicts modal */}

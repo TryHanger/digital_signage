@@ -5,25 +5,22 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/TryHanger/digital_signage/backend/internal/cache"
 	"github.com/TryHanger/digital_signage/backend/internal/config"
 	handler2 "github.com/TryHanger/digital_signage/backend/internal/handler"
-	model2 "github.com/TryHanger/digital_signage/backend/internal/model"
+	"github.com/TryHanger/digital_signage/backend/internal/model"
 	repository2 "github.com/TryHanger/digital_signage/backend/internal/repository"
 	service2 "github.com/TryHanger/digital_signage/backend/internal/service"
-	"github.com/TryHanger/digital_signage/backend/internal/socket"
 	"github.com/gin-contrib/cors"
 
 	"github.com/gin-gonic/gin"
-	"github.com/gorilla/websocket"
 )
 
 func Run() {
 	cfg := config.Load()
 	db := repository2.InitDB(cfg)
 
-	//db.Migrator().DropTable(&model.Location{}, &model.Monitor{}, &model.MonitorGroup{}, &model.Content{}, &model.Schedule{}, &model.ScheduleBlock{}, &model.ScheduleContent{}, &model.ScheduleException{}, &model.Template{}, &model.TemplateBlock{}, &model.TemplateContent{})
-	db.AutoMigrate(&model2.Location{}, &model2.Monitor{}, &model2.MonitorGroup{}, &model2.Content{}, &model2.Schedule{}, &model2.ScheduleBlock{}, &model2.ScheduleContent{}, &model2.ScheduleException{}, &model2.Template{}, &model2.TemplateBlock{}, &model2.TemplateContent{})
+	db.Migrator().DropTable(&model.Location{}, &model.Monitor{}, &model.MonitorGroup{}, &model.Content{}, &model.Schedule{}, &model.ScheduleBlock{}, &model.Schedule{}, &model.ScheduleBlock{}, &model.ScheduleBlockItem{}, &model.ScheduleException{}, &model.Template{}, &model.TemplateBlock{}, &model.TemplateContent{})
+	db.AutoMigrate(&model.Location{}, &model.Monitor{}, &model.MonitorGroup{}, &model.Content{}, &model.Schedule{}, &model.ScheduleBlock{}, &model.Schedule{}, &model.ScheduleBlock{}, &model.ScheduleBlockItem{}, &model.ScheduleException{}, &model.Template{}, &model.TemplateBlock{}, &model.TemplateContent{})
 	// --- Repositories ---
 	monitorRepo := repository2.NewMonitorRepository(db)
 	contentRepo := repository2.NewContentRepository(db)
@@ -32,10 +29,10 @@ func Run() {
 	templateRepo := repository2.NewTemplateRepository(db)
 
 	// --- Cache ---
-	scheduleCache := cache.NewScheduleCache()
+	//scheduleCache := cache.NewScheduleCache()
 
 	// --- Notifier ---
-	notifier := socket.NewWebSocketNotifier(monitorRepo, scheduleCache)
+	//notifier := socket.NewWebSocketNotifier(monitorRepo, scheduleCache)
 
 	// --- Services ---
 	monitorService := service2.NewMonitorService(monitorRepo)
@@ -49,7 +46,7 @@ func Run() {
 	contentHandler := handler2.NewContentHandler(contentService)
 	scheduleHandler := handler2.NewScheduleHandler(scheduleService)
 	locationHandler := handler2.NewLocationHandler(locationService)
-	cacheHandler := handler2.NewCacheHandler(scheduleCache)
+	//cacheHandler := handler2.NewCacheHandler(scheduleCache)
 	templateHandler := handler2.NewTemplateHandler(templateService)
 
 	// --- Gin ---
@@ -74,20 +71,20 @@ func Run() {
 	r.RedirectTrailingSlash = false
 
 	// 🔌 WebSocket endpoint
-	r.GET("/ws", func(c *gin.Context) {
-		conn, err := websocket.Upgrade(c.Writer, c.Request, nil, 1024, 1024)
-		if err != nil {
-			log.Println("❌ Ошибка апгрейда соединения:", err)
-			return
-		}
-
-		// Просто передаём управление сокет-обработчику
-		notifier.HandleConnection(conn)
-	})
+	//r.GET("/ws", func(c *gin.Context) {
+	//	conn, err := websocket.Upgrade(c.Writer, c.Request, nil, 1024, 1024)
+	//	if err != nil {
+	//		log.Println("❌ Ошибка апгрейда соединения:", err)
+	//		return
+	//	}
+	//
+	//	// Просто передаём управление сокет-обработчику
+	//	notifier.HandleConnection(conn)
+	//})
 
 	// REST endpoints under /api/v1
 	api := r.Group("/api/v1")
-	api.GET("/cache/schedules", cacheHandler.GetCache)
+	//api.GET("/cache/schedules", cacheHandler.GetCache)
 	monitorHandler.RegisterRoutes(api)
 	contentHandler.RegisterRoutes(api)
 	scheduleHandler.RegisterRoutes(api)

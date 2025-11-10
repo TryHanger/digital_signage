@@ -1,13 +1,11 @@
 package handler
 
 import (
-	"net/http"
-	"strconv"
-
 	"github.com/TryHanger/digital_signage/backend/internal/model"
 	"github.com/TryHanger/digital_signage/backend/internal/service"
-
 	"github.com/gin-gonic/gin"
+	"net/http"
+	"strconv"
 )
 
 type ScheduleHandler struct {
@@ -24,7 +22,7 @@ func (h *ScheduleHandler) RegisterRoutes(rg *gin.RouterGroup) {
 		group.POST("", h.CreateSchedule)
 		group.GET("", h.GetSchedules)
 		group.GET("/:id", h.GetScheduleByID)
-		group.DELETE("/:id", h.DeleteSchedule)
+		group.DELETE("/id", h.DeleteSchedule)
 	}
 }
 
@@ -34,17 +32,15 @@ func (h *ScheduleHandler) CreateSchedule(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-
-	if err := h.service.CreateSchedule(&schedule); err != nil {
+	if err := h.service.Create(&schedule); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-
-	c.JSON(http.StatusCreated, schedule)
+	c.JSON(http.StatusCreated, gin.H{"message": "Schedule created successfully"})
 }
 
 func (h *ScheduleHandler) GetSchedules(c *gin.Context) {
-	schedules, err := h.service.GetAllSchedules()
+	schedules, err := h.service.GetAll()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -53,20 +49,30 @@ func (h *ScheduleHandler) GetSchedules(c *gin.Context) {
 }
 
 func (h *ScheduleHandler) GetScheduleByID(c *gin.Context) {
-	id, _ := strconv.Atoi(c.Param("id"))
-	schedule, err := h.service.GetScheduleByID(uint(id))
+	idParam := c.Param("id")
+	id, err := strconv.ParseUint(idParam, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	schedule, err := h.service.GetByID(uint(id))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, schedule)
 }
 
 func (h *ScheduleHandler) DeleteSchedule(c *gin.Context) {
-	id, _ := strconv.Atoi(c.Param("id"))
-	if err := h.service.DeleteSchedule(uint(id)); err != nil {
+	idParam := c.Param("id")
+	id, err := strconv.ParseUint(idParam, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if err := h.service.Delete(uint(id)); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.Status(http.StatusNoContent)
+	c.JSON(http.StatusOK, gin.H{"message": "Schedule deleted successfully"})
 }

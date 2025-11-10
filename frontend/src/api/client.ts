@@ -23,7 +23,15 @@ export type Monitor = {
   status?: string
   locationID?: number
   location?: Location
+  groupID?: number
+  group?: MonitorGroup
   createdAt?: string
+}
+
+export type MonitorGroup = {
+  id?: number
+  name: string
+  monitors?: Monitor[]
 }
 
 export type Content = {
@@ -51,6 +59,10 @@ export type Schedule = {
   startTime: string
   endTime: string
   priority?: number
+  name?: string
+  description?: string
+  groupId?: number
+  monitors?: Array<{ id?: number }>
   createdAt?: string
   content?: Content
   monitor?: Monitor

@@ -1,8 +1,9 @@
 package repository
 
 import (
-	model2 "github.com/TryHanger/digital_signage/backend/internal/model"
+	"github.com/TryHanger/digital_signage/backend/internal/model"
 	"gorm.io/gorm"
+	"time"
 )
 
 type ScheduleRepository struct {
@@ -13,60 +14,54 @@ func NewScheduleRepository(db *gorm.DB) *ScheduleRepository {
 	return &ScheduleRepository{db: db}
 }
 
-func (r *ScheduleRepository) Create(schedule *model2.Schedule) error {
-	return r.db.Create(schedule).Error
+func (r *ScheduleRepository) Create(schedule *model.Schedule) error {
+	return r.db.Create(&schedule).Error
 }
 
-// GetAll возвращает все расписания с полным предзагрузом всех связанных данных
-func (r *ScheduleRepository) GetAll() ([]model2.Schedule, error) {
-	var schedules []model2.Schedule
-	err := r.db.
-		Preload("Template.Blocks.Contents"). // контент шаблона
-		Preload("Blocks.Contents").          // контент блоков расписания
-		Preload("Monitor").
-		Preload("MonitorGroup").
+func (r *ScheduleRepository) GetAll() ([]model.Schedule, error) {
+	var schedules []model.Schedule
+	err := r.db.Preload("Blocks.Items.Content").
+		Preload("Monitors").
+		Preload("Location").
+		Preload("Group").
 		Preload("Exceptions").
 		Find(&schedules).Error
 	return schedules, err
 }
 
-// GetByID возвращает конкретное расписание с полным preload
-func (r *ScheduleRepository) GetByID(id uint) (*model2.Schedule, error) {
-	var schedule model2.Schedule
-	err := r.db.
-		Preload("Template.Blocks.Contents").
-		Preload("Blocks.Contents").
-		Preload("Monitor").
-		Preload("MonitorGroup").
+func (r *ScheduleRepository) GetByID(id uint) (*model.Schedule, error) {
+	var schedule model.Schedule
+	err := r.db.Preload("Blocks.Items.Content").
+		Preload("Monitors").
+		Preload("Location").
+		Preload("Group").
 		Preload("Exceptions").
 		First(&schedule, id).Error
-	return &schedule, err
+	if err != nil {
+		return nil, err
+	}
+
+	return &schedule, nil
 }
 
-// Delete удаляет расписание и каскадно все блоки и контент
-func (r *ScheduleRepository) Delete(id uint) error {
-	return r.db.Delete(&model2.Schedule{}, id).Error
-}
-
-func (r *ScheduleRepository) WithTransaction(fn func(repo *ScheduleRepository) error) error {
+func (r *ScheduleRepository) Update(schedule *model.Schedule) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
-		txRepo := &ScheduleRepository{db: tx}
-		return fn(txRepo)
+		if err := tx.Save(schedule).Error; err != nil {
+			return err
+		}
+		return nil
 	})
 }
 
-func (r *ScheduleRepository) GetTemplateWithBlocks(templateID uint) (*model2.Template, error) {
-	var template model2.Template
-	err := r.db.
-		Preload("Blocks.Contents").
-		First(&template, templateID).Error
-	return &template, err
+func (r *ScheduleRepository) Delete(id uint) error {
+	return r.db.Delete(&model.Schedule{}, id).Error
 }
 
-func (r *ScheduleRepository) CreateScheduleBlock(block *model2.ScheduleBlock) error {
-	return r.db.Create(block).Error
-}
-
-func (r *ScheduleRepository) CreateScheduleContent(content *model2.ScheduleContent) error {
-	return r.db.Create(content).Error
+func (r *ScheduleRepository) GetActiveOn(date time.Time) ([]model.Schedule, error) {
+	var schedules []model.Schedule
+	err := r.db.Preload("Blocks.Items.Content").
+		Where("start_date <= ?", date).
+		Where("end_date IS NULL OR end_date >= ?", date).
+		Find(&schedules).Error
+	return schedules, err
 }
