@@ -1,11 +1,12 @@
 package handler
 
 import (
+	"net/http"
+	"strconv"
+
 	"github.com/TryHanger/digital_signage/backend/internal/model"
 	"github.com/TryHanger/digital_signage/backend/internal/service"
 	"github.com/gin-gonic/gin"
-	"net/http"
-	"strconv"
 )
 
 type ScheduleHandler struct {

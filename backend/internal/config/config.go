@@ -1,9 +1,10 @@
 package config
 
 import (
-	"github.com/joho/godotenv"
 	"log"
 	"os"
+
+	"github.com/joho/godotenv"
 )
 
 type Config struct {
@@ -13,10 +14,12 @@ type Config struct {
 	DBPassword string
 	DBName     string
 	ServerPort string
+	JWTSecret  string
 }
 
 func Load() *Config {
 	_ = godotenv.Load(".env.local")
+	//_ = godotenv.Load("")
 	//_, filename, _, ok := runtime.Caller(0)
 	//if !ok {
 	//	log.Fatal("Не удалось определить путь к main.go")
@@ -42,10 +45,16 @@ func Load() *Config {
 		DBPassword: os.Getenv("DB_PASSWORD"),
 		DBName:     os.Getenv("DB_NAME"),
 		ServerPort: os.Getenv("SERVER_PORT"),
+		JWTSecret:  os.Getenv("JWT_SECRET"),
 	}
 
 	if cfg.DBHost == "" {
 		log.Fatal("Не найдены переменные окружения в .env.local")
+	}
+
+	// Provide a default JWT secret if none provided (useful for local dev). Override via env in production.
+	if cfg.JWTSecret == "" {
+		cfg.JWTSecret = "secret"
 	}
 
 	return cfg

@@ -1,13 +1,17 @@
 import axios from 'axios'
 
-const API_BASE =
-    import.meta.env.DEV
-        ? '/api/v1'  // локальная разработка с vite proxy
-        : import.meta.env.VITE_API_URL + '/api/v1';
+// Build-time / runtime API base handling:
+// - during `npm run dev` Vite proxy is used and requests go to `/api/v1`
+// - in production build we embed VITE_API_URL (which in Docker images will be a placeholder
+//   __API_URL_PLACEHOLDER__ and replaced at container start by docker-entrypoint.sh)
+const _prodApiRaw = import.meta.env.VITE_API_URL || '__API_URL_PLACEHOLDER__'
+const prodApi = _prodApiRaw.replace(/\/$/, '') // trim trailing slash
+const API_BASE = import.meta.env.DEV ? '/api/v1' : `${prodApi}/api/v1`
 
 const api = axios.create({
   baseURL: API_BASE,
   headers: { 'Content-Type': 'application/json' },
+  withCredentials: true,
 });
 
 
@@ -207,3 +211,21 @@ export const client = {
 }
 
 export default client
+
+// Auth helpers
+export const setAccessToken = (token: string | null) => {
+  if (token) {
+    api.defaults.headers.common['Authorization'] = `Bearer ${token}`
+    try { localStorage.setItem('access_token', token) } catch {}
+  } else {
+    delete api.defaults.headers.common['Authorization']
+    try { localStorage.removeItem('access_token') } catch {}
+  }
+}
+
+export const auth = {
+  register: (data: { email?: string; phone?: string; password: string }) => api.post('/auth/register', data).then((r: any) => r.data),
+  login: (data: { email?: string; phone?: string; password: string }) => api.post('/auth/login', data).then((r: any) => r.data),
+  refresh: () => api.post('/auth/refresh').then((r: any) => r.data),
+  logout: () => api.post('/auth/logout').then((r: any) => r.data),
+}
